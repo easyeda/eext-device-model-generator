@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>数据手册 3D 模型</title>
+<style>
+  :root { font: 14px/1.5 system-ui, sans-serif; color: #18233a; background: #f3f5f8; }
+  body { margin: 0; }
+  main { max-width: 1080px; margin: auto; padding: 16px 20px; }
+  h2 { font-size: 15px; margin: 0; }
+  p { margin: 0; }
+  .hint, small { color: #52627a; overflow-wrap: anywhere; }
+  section { background: white; border: 1px solid #d9e0ea; border-radius: 8px; padding: 12px; margin: 12px 0; min-width: 0; }
+  label { display: grid; gap: 4px; min-width: 0; }
+  input, select, textarea, button { font: inherit; min-width: 0; }
+  input[type=password], input[type=url], input[type=text], select, textarea { width: 100%; box-sizing: border-box; padding: 6px 8px; color: inherit; border: 1px solid #95a6bf; border-radius: 4px; background: white; }
+  input[type=file] { padding: 2px 0; }
+  #max-output-tokens[data-automatic] { color: #52627a; }
+  #api-settings > summary { width: fit-content; cursor: pointer; font-weight: 600; }
+  #api-settings[open] > summary { margin-bottom: 10px; }
+  .inputs { display: grid; grid-template-columns: minmax(145px, 1fr) minmax(140px, 1fr) minmax(150px, 1fr) minmax(120px, 0.65fr); gap: 12px; align-items: start; }
+  .source-row, .actions, .preview-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .source-row { margin-top: 9px; justify-content: space-between; }
+  .review-toggle { display: flex; align-items: center; gap: 4px; }
+  #operation-feedback { margin: 0 0 12px; padding: 8px 10px; border: 1px solid #d9e0ea; border-radius: 5px; background: #fff; }
+  #workflow-progress:not([hidden]) { display: block; width: 100%; height: 7px; margin: 0 0 5px; accent-color: #184fb0; }
+  .operation-status { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  #stop-visual-review { flex: none; }
+  #operation-feedback[data-error=true] #workflow-progress { accent-color: #9a181c; }
+  .workspace { display: grid; grid-template-columns: minmax(330px, 1.25fr) minmax(250px, 1fr); gap: 12px; }
+  .workspace > * { margin: 0 0 12px; }
+  .preview-header { justify-content: space-between; margin-bottom: 8px; }
+  #viewport { position: relative; display: grid; place-items: center; min-height: 248px; border-radius: 5px; background: #e9eef5; overflow: hidden; }
+  #viewport canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+  #preview-message { position: relative; padding: 12px; text-align: center; color: #52627a; pointer-events: none; }
+  #preview-dimensions { position: absolute; inset: auto 7px 7px; display: flex; justify-content: center; flex-wrap: wrap; gap: 4px; pointer-events: none; }
+  #preview-dimensions[hidden] { display: none; }
+  #preview-dimensions span { border: 1px solid #d4dce6; border-radius: 4px; padding: 2px 6px; background: #fff; font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  #preview-dimensions [data-axis=x] { color: #a33139; }
+  #preview-dimensions [data-axis=y] { color: #197747; }
+  #preview-dimensions [data-axis=z] { color: #2359aa; }
+  .dimension-toggle { display: flex; align-items: center; gap: 3px; font-size: 12px; }
+  #dimensions-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+  #dimensions-layout:has(#drawing-details[hidden]) { grid-template-columns: minmax(0, 1fr); }
+  #dimensions { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 130px), 1fr)); gap: 8px; margin: 0; }
+  #dimensions-more { padding-top: 8px; }
+  #dimensions-layout { margin-bottom: 12px; }
+  #drawing-details { min-width: 0; margin-bottom: 12px; }
+  #drawing-frame { position: relative; aspect-ratio: 4 / 3; overflow: hidden; border: 1px solid #d9e0ea; border-radius: 5px; background: #f3f5f8; touch-action: pan-y pinch-zoom; }
+  #drawing-pagination { position: absolute; inset: 0; pointer-events: none; }
+  #drawing-pagination[hidden] { display: none; }
+  #drawing-pagination button { position: absolute; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; display: grid; place-items: center; padding: 0; border-radius: 50%; background: #fff; font-size: 24px; line-height: 1; pointer-events: auto; }
+  #drawing-previous { left: 7px; }
+  #drawing-next { right: 7px; }
+  #drawing-pagination button:disabled { pointer-events: none; }
+  #drawing-summary { margin: 0 0 6px; font-size: 14px; }
+  #feature-notes { margin: 0 0 10px; color: #9a4d11; }
+  #drawing-images figure { position: absolute; inset: 0; margin: 0; }
+  #drawing-images img { display: block; width: 100%; height: 100%; object-fit: contain; }
+  #drawing-page-count { display: block; margin-top: 4px; color: #52627a; text-align: center; font-size: 12px; }
+  #callout-status { margin: 0 0 6px; font-size: 14px; }
+  #dimensions div { border: 1px solid #e0e7f2; border-radius: 5px; padding: 4px 7px; }
+  dt { font-size: 12px; color: #52627a; }
+  dd { margin: 0; font-weight: 600; }
+  .preview-help { flex: 1; }
+  button { padding: 5px 11px; border: 1px solid #95a6bf; background: white; color: inherit; border-radius: 5px; cursor: pointer; }
+  button.primary { color: white; background: #184fb0; border-color: #184fb0; }
+  button:disabled { opacity: 0.52; cursor: default; }
+  :focus-visible { outline: 2px solid #336edb; outline-offset: 2px; }
+  #status { min-height: 20px; overflow-wrap: anywhere; }
+  #status[data-error=true] { white-space: pre-wrap; }
+  #status[data-error=true], #api-connection-error, #settings-status { color: #9a181c; }
+  .chat-card { box-sizing: border-box; height: 320px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; padding: 0; overflow: hidden; }
+  .chat-card h2 { padding: 10px 12px; border-bottom: 1px solid #e5ebf3; }
+  #chat-log { min-height: 0; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; overscroll-behavior: contain; padding: 10px 12px; background: #f6f8fc; }
+  .message { flex: none; align-self: flex-start; max-width: 84%; overflow-wrap: anywhere; white-space: pre-wrap; background: white; border: 1px solid #e0e7f1; padding: 6px 8px; border-radius: 8px; }
+  .message[data-role=user] { align-self: flex-end; background: #e1ebfd; border-color: #d4e2fa; }
+  #chat-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; padding: 10px 12px; border-top: 1px solid #e5ebf3; }
+  #chat-input { resize: none; height: 64px; min-height: 64px; max-height: 64px; overflow-y: auto; }
+  #pcb-binding { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5ebf3; }
+  .pcb-controls { display: grid; grid-template-columns: minmax(150px, 1fr) auto auto; align-items: end; gap: 8px; }
+  #pcb-target-status { margin-top: 5px; }
+  @media (max-width: 660px) {
+    .workspace, .inputs, #dimensions-layout { grid-template-columns: minmax(0, 1fr); }
+    .workspace { gap: 0; }
+  }
+  @media (max-width: 460px) {
+    .pcb-controls { grid-template-columns: 1fr 1fr; }
+    .pcb-controls label { grid-column: 1 / -1; }
+  }
+</style>
+<main>
+  <section aria-label="OpenAI 兼容 API 设置">
+    <details id="api-settings">
+      <summary>OpenAI 兼容 API 设置</summary>
+      <div class="inputs">
+        <label>OpenAI 兼容 API 地址 <input id="api-base" type="url" spellcheck="false" placeholder="https://api.example.com/v1" aria-describedby="api-connection-error"></label>
+        <label>视觉模型 ID <input id="custom-model" type="text" spellcheck="false" placeholder="填写服务商提供的模型 ID" aria-describedby="api-connection-error"></label>
+        <label>API 密钥（可选） <input id="custom-api-key" type="password" autocomplete="off" spellcheck="false" aria-describedby="api-connection-error"></label>
+        <label>最大输出 tokens <input id="max-output-tokens" type="text" inputmode="numeric" placeholder="自动" autocomplete="off" spellcheck="false" aria-describedby="api-connection-error"></label>
+      </div>
+    </details>
+    <small id="api-connection-error" aria-live="polite" hidden></small>
+    <p id="settings-status" role="status" hidden></p>
+    <div class="source-row">
+      <label>数据手册 PDF <input id="pdf" type="file" accept="application/pdf,.pdf"></label>
+      <p id="source" class="hint" hidden></p>
+      <label class="review-toggle" title="对照机械图校正生成的 3D 模型"><input id="visual-review" type="checkbox" disabled>多轮校正</label>
+      <button id="analyze" type="button" class="primary" disabled>AI 识别并生成</button>
+    </div>
+  </section>
+  <div id="operation-feedback" hidden>
+    <progress id="workflow-progress" aria-label="处理阶段进度" hidden></progress>
+    <div class="operation-status">
+      <p id="status" role="status" aria-live="polite"></p>
+      <button id="stop-visual-review" type="button" hidden>停止校正</button>
+    </div>
+  </div>
+  <div class="workspace">
+    <section aria-labelledby="preview-heading">
+      <div class="preview-header">
+        <h2 id="preview-heading">3D 预览</h2>
+        <small class="preview-help">拖动旋转 · 滚轮缩放</small>
+        <label class="dimension-toggle"><input id="show-dimensions" type="checkbox" checked disabled>尺寸</label>
+        <select id="preview-view" aria-label="预览视角" style="width:auto" disabled>
+          <option value="iso">斜视</option>
+          <option value="front">沿 −Y</option>
+          <option value="side">沿 −X</option>
+          <option value="top">俯视</option>
+        </select>
+        <button id="fit-preview" type="button" disabled>重置视角</button>
+      </div>
+      <div id="viewport"><p id="preview-message">识别成功后显示模型</p><div id="preview-dimensions" aria-label="CAD 实测外形尺寸" hidden></div></div>
+    </section>
+    <section class="chat-card" aria-labelledby="chat-heading">
+      <h2 id="chat-heading">与 AI 对话调整</h2>
+      <div id="chat-log" role="log" aria-label="调整对话"></div>
+      <form id="chat-form">
+        <textarea id="chat-input" aria-label="调整要求" rows="2" maxlength="1500" placeholder="输入调整要求…" disabled></textarea>
+        <button id="chat-send" class="primary" type="submit" disabled>发送</button>
+      </form>
+    </section>
+  </div>
+  <section aria-labelledby="dimensions-heading">
+    <div class="preview-header">
+      <h2 id="dimensions-heading">尺寸对照</h2>
+      <small id="package-label" class="preview-help"></small>
+      <button id="reread" type="button" disabled>重新读图</button>
+    </div>
+    <div id="dimensions-layout">
+      <div id="drawing-details" hidden>
+        <h3 id="drawing-summary">机械图</h3>
+        <div id="drawing-frame" role="region" aria-labelledby="drawing-summary">
+          <div id="drawing-images"></div>
+          <nav id="drawing-pagination" aria-label="机械图翻页" hidden>
+            <button id="drawing-previous" type="button" aria-label="上一页">‹</button>
+            <button id="drawing-next" type="button" aria-label="下一页">›</button>
+          </nav>
+        </div>
+        <span id="drawing-page-count" aria-live="polite"></span>
+      </div>
+      <div>
+        <h3 id="callout-status" hidden></h3>
+        <dl id="dimensions" aria-labelledby="callout-status"></dl>
+        <div id="dimensions-more" hidden>
+          <button id="dimensions-toggle" type="button" aria-controls="dimensions" aria-expanded="false">展开</button>
+        </div>
+      </div>
+    </div>
+    <p id="feature-notes" hidden></p>
+    <div class="actions">
+      <button id="save" type="button" disabled>保存 STEP</button>
+      <button id="import" type="button" disabled hidden>导入个人库</button>
+    </div>
+    <div id="pcb-binding" hidden>
+      <div class="pcb-controls">
+        <label>PCB 目标器件
+          <select id="pcb-target" disabled><option value="">请选择一个器件</option></select>
+        </label>
+        <button id="pcb-target-refresh" type="button">刷新器件</button>
+        <button id="pcb-bind" class="primary" type="button" disabled>绑定到器件</button>
+      </div>
+      <p id="pcb-target-status" class="hint" aria-live="polite"></p>
+    </div>
+  </section>
+</main>
+<script>/* PANEL_CODE */</script>
+</html>

@@ -1,0 +1,10 @@
+{
+  "器件模型生成器": "Datasheet 3D Model",
+  "从器件数据手册PDF识别机械图和尺寸，生成可预览的3D模型及文件，支持绑定到PCB器件": "Read mechanical drawings and dimensions from component datasheets, preview and export 3D models as STEP, and bind them to PCB components.",
+  "AI 识别与 3D 预览": "Analyze and preview 3D model",
+  "3D": "3D",
+  "STEP": "STEP",
+  "PDF": "PDF",
+  "Datasheet": "Datasheet",
+  "build123d": "build123d"
+}
