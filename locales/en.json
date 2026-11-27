@@ -2,7 +2,7 @@
   "器件模型生成器": "Datasheet 3D Model",
   "面板未打开": "The panel did not open.",
   "打开建模面板失败：${1}": "Could not open the modeling panel. ${1}",
-  "OpenAI 兼容 API 设置": "OpenAI-compatible API settings",
+  "模型API配置": "OpenAI-compatible API settings",
   "OpenAI 兼容 API 地址": "OpenAI-compatible API URL",
   "视觉模型 ID": "Vision model ID",
   "填写服务商提供的模型 ID": "Enter the provider's model ID",

@@ -1,6 +1,8 @@
-# Datasheet 3D Model Generator
+# AI Datasheet 3D Model Generator
 
 [简体中文](./README.md)
+
+**This extension requires a vision-capable AI model API. Have the API URL, model ID, and any required API key ready. See your provider’s documentation for these details.**
 
 Datasheet 3D Model is an extension for EasyEDA Professional. It reads geometry and dimensions from mechanical drawings in component datasheet PDFs, uses [build123d](https://github.com/gumyr/build123d) to generate STEP models for preview and export, and can bind a generated model to a selected PCB component.
 
@@ -39,12 +41,21 @@ Save a STEP file, import the model into your personal 3D library, or bind it to 
 
 ## Usage
 
-1. Expand **OpenAI-compatible API settings** at the top. Enter an API URL, a vision model ID, and an API key if the service requires one. The URL can be a base URL or the full Chat Completions endpoint. The service must support `image_url` and browser cross-origin requests.
+1. At the top of the panel, enter the API URL, vision model ID, and any required API key in **OpenAI-compatible API settings**. Use your provider’s base URL or the full Chat Completions endpoint. The service must support `image_url` and browser cross-origin requests.
 2. Set **Max output tokens** if needed. Leave the field blank to look up and display the published limit for the selected OpenRouter model. This lookup requires no API key. Other services use their server defaults. The extension saves manually entered values. Clear the field to return to Auto.
 3. Open the datasheet PDF and select **Analyze and generate**. If the datasheet covers several packages, provide the full part number, package name, or original PDF page number in the chat.
 4. Inspect the 3D preview and **Dimensions from drawing**. The arrows switch between selected drawings and their dimensions. PCB pad dimensions are marked separately. Select **Read drawing again** to recheck the selected pages.
 5. Describe a change in chat, such as “Enlarge only the mounting hole to the maximum size specified in the drawing” or “Make the button matte red.” You can also enter `Custom dimensions X=3.5 mm, Y=2.8 mm` or `Restore drawing dimensions`.
 6. Choose **Save STEP** or **Import to personal library**. In a PCB document, select a reference designator under **PCB target component** and choose **Bind to component**. You can also select one component on the PCB canvas and choose **Refresh components**.
+
+### Model API configuration
+
+![The four model API configuration fields in the Chinese interface](images/guide-api-settings.png)
+
+- **OpenAI-compatible API URL**. Enter your provider’s base URL or the full URL ending in `/chat/completions`. The screenshot shows the placeholder `https://api.example.com/v1`. The service must allow browser cross-origin requests.
+- **Vision model ID**. Enter the exact ID supplied by your provider. The model must support image inputs via `image_url`.
+- **API key (optional)**. Paste the key if your provider requires authentication. Otherwise, leave this field blank.
+- **Max output tokens**. Leave blank for **Auto**. Enter a positive integer to set a limit manually, or clear the field to return to **Auto**.
 
 ## Build from source
 
