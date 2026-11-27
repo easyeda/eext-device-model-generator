@@ -1,4 +1,4 @@
-# Datasheet 3D Model
+# Datasheet 3D Model Generator
 
 [简体中文](./README.md)
 

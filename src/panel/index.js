@@ -2,7 +2,7 @@ import { openPdf, candidatePages, drawingCandidates, drawingDimensionHints, draw
 import { createPreview, renderReviewViews } from './preview.js';
 import { auditDrawingCallouts, customConnection, inspectDrawing, locateDrawing, prepareDrawingReference, publishedOutputLimit, readCustomKey, requestVision, reviewModelViews } from './vision.js';
 import { createVisionSettingsStore, restoreOpenAiSettings } from './vision-settings.js';
-import { resolveProposal, reviewFeatures } from '../model/model-plan.js';
+import { resolveProposal, reviewTerminals } from '../model/model-plan.js';
 import { axes, compareDimensions, readCustomDimensions, reviewBodyDimensions } from './dimensions.js';
 import { bindPcbModel, createLibraryModel, pcbModelTransform, readBindingTarget, readPcbTargets } from './pcb-binding.js';
 import { language, localizePanel, t } from './i18n.js';
@@ -66,6 +66,7 @@ let draft;
 let buildFailure;
 let inspection;
 let drawingLocation;
+let drawingImage;
 let drawingQuestion;
 let drawingPage = 0;
 let dimensionsExpanded = false;
@@ -282,7 +283,7 @@ function renderValidationNotes() {
     current?.custom ?? {}, matchingPage ? earlierInspection : undefined);
   const warnings = [...(measuredGeometry?.alignmentWarnings ?? []), ...(measuredGeometry?.mechanicalWarnings ?? []),
     ...(matchingPage && inspection && current ? [
-      ...reviewFeatures(inspection, current), ...reviewBodyDimensions(inspection, measuredGeometry, current.custom),
+      ...reviewTerminals(inspection, current), ...reviewBodyDimensions(inspection, measuredGeometry, current.custom),
     ] : [])];
   for (const row of rows) {
     const axis = row.axis.toUpperCase();
@@ -369,6 +370,7 @@ function clearSource() {
   buildFailure = undefined;
   inspection = undefined;
   drawingLocation = undefined;
+  drawingImage = undefined;
   drawingQuestion = undefined;
   earlierInspection = undefined;
   exported = undefined;
@@ -615,32 +617,36 @@ async function readDrawing(preferredPages, instruction, { review, followUp }) {
   const images = await drawingPageImages(pdfDocument, location);
   const hints = await drawingDimensionHints(pdfDocument, location).catch(() => []);
   const reference = await prepareDrawingReference(images, hints);
-  const result = await inspectDrawing({ ...credentials, reference, instruction, primaryPage: location.page });
+  const target = [location.partNumber, location.packageName].filter(Boolean).join(' · ');
+  const result = await inspectDrawing({ ...credentials, reference, instruction, primaryPage: location.page, target });
   if (result.status === 'ready') {
     const firstPass = (Array.isArray(result.measurements) ? result.measurements : []).filter(item => typeof item?.label === 'string'
       && Number.isFinite(item.mm) && typeof item.source === 'string');
-    let callouts;
+    let audit;
     let paymentFailure;
     showStage('audit', t('正在逐视图复核尺寸标注…'));
     try {
-      callouts = await auditDrawingCallouts({ ...credentials, reference, name: result.name, firstPass });
+      audit = await auditDrawingCallouts({ ...credentials, reference, inspection: result, target, firstPass });
     } catch (error) {
       credentials.signal.throwIfAborted();
       if (error.name === 'PaymentRequiredError') paymentFailure = error;
       // The first reading remains available when the dimension audit fails.
     }
-    const audited = new Set(callouts?.map(item => item.firstPassIndex));
+    const audited = new Set(audit?.callouts.map(item => item.firstPassIndex));
     const measurements = firstPass.filter((item, index) => !audited.has(index + 1));
     drawingQuestion = undefined;
     drawingLocation = location;
+    drawingImage = reference.image;
     earlierInspection = review && inspection?.page === result.page && samePages(inspection.sourcePages, sourcePages)
       ? inspection : undefined;
-    inspection = { ...result, sourcePages, callouts, measurements, reader: credentials.model };
+    inspection = { ...result, ...audit, target, sourcePages, measurements, reader: credentials.model };
     showDrawingImages(images, location.page);
     drawingDetails.hidden = false;
     renderDimensions();
     if (paymentFailure) throw paymentFailure;
-  } else if (followUp || !review) {
+    return inspection;
+  }
+  if (followUp || !review) {
     drawingQuestion = { reply: result.reply, choices: pending?.choices ?? [], answers };
   }
   return result;
@@ -661,7 +667,7 @@ function checkGeneratedModel(drawing, proposal, output, custom, checkBody) {
   return {
     mismatches: compareDimensions(drawing, proposal.bounds, output, custom).filter(row => row.geometryDiffers),
     alignmentWarnings: output.alignmentWarnings ?? [],
-    featureWarnings: [...reviewFeatures(drawing, proposal), ...output.mechanicalWarnings,
+    featureWarnings: [...reviewTerminals(drawing, proposal), ...output.mechanicalWarnings,
       ...(checkBody ? reviewBodyDimensions(drawing, output, custom) : [])],
   };
 }
@@ -743,13 +749,14 @@ async function refineWithModelViews(proposal, output, drawing, custom, instructi
             before: previousOutput ? renderReviewViews(previousOutput.parts, frame, drawing.views) : undefined };
         }
         assessment = await reviewModelViews({ ...visionCredentials(signal), ...comparison, diagnostics,
-          views: drawing.views, issues: previousIssues, instruction });
+          views: drawing.views, issues: previousIssues, instruction, custom, target: drawing.target || drawing.name,
+          cadDimensions: { size: latest.output.size, bodySize: latest.output.bodySize } });
         signal.throwIfAborted();
       }
       if (assessment.verdict === 'matches' && !assessment.issues.length && !diagnostics.length) {
         return { ...latest, note: revisions ? t('经过 ${1} 轮修正，多视图复核通过。', revisions) : t('多视图复核通过。') };
       }
-      const issues = assessment.issues.length || assessment.verdict === 'matches' ? assessment.issues : previousIssues;
+      const issues = assessment.issues;
       if (!issues.length && !diagnostics.length) {
         assessment = undefined;
         previousOutput = undefined;
@@ -763,9 +770,7 @@ async function refineWithModelViews(proposal, output, drawing, custom, instructi
         + (latest.output.terminalLayout?.length ? '\nCAD 端子组实测包围盒和首末实例包围盒中心（全局 XYZ，mm）：'
           + JSON.stringify(latest.output.terminalLayout) : '')
         + (retryFeedback ? '\n上一轮反馈：' + retryFeedback : '')
-        + '\n先用图纸中能相互印证的正投影视图确认零件相对主体的位置和朝向。以 Z=0 贴装面和图纸标明的主体边、中心线或接合面为基准，'
-        + '纠正悬空、阵列方向和放置坐标。位置错误优先改位置，按图纸证据再改局部轮廓。'
-        + '使用 edit，仅修改相关零件，保留已确认的尺寸、端子节距和外观。';
+        + '\n只处理当前有依据的几何偏差。用图上的安装面或实体边定位，保留用户目标和其余已确认结构与外观。';
       const response = await requestVision({ ...visionCredentials(signal), inspection: drawing, instruction: guidance,
         current: latest.proposal, custom, comparison: { images, candidate: comparison.candidate } });
       signal.throwIfAborted();
@@ -829,8 +834,7 @@ async function ask(instruction, initial, historyToSend = []) {
   const sourceTargets = !prior || restoreDrawing || alignmentEdit
     ? Object.fromEntries(Object.entries(drawing.bounds ?? {}).filter(([, value]) => Number.isFinite(value))) : {};
   const intent = instruction + (restoreDrawing ? '\n将整件外形恢复为当前图纸可核对的尺寸，重算对应实体。' : '')
-    + (alignmentEdit ? '\n结合机械图和 CAD 视图修正零件的接合位置。核对端子中心及接合面，保留图纸标明的端子节距和整件跨度。以 edit 提交实际几何修改。' : '')
-    + (!prior ? '\n使用当前 PDF 图纸的结构化读数创建完整的新模型。' : '');
+    + (alignmentEdit ? '\n按图纸基准修正接合位置，核对端子中心、节距及整件跨度。' : '');
   let request = prior && buildFailure ? intent + '\n上次 CAD 校验反馈：' + buildFailure : intent;
   let working = prior;
   let priorFeedback;
@@ -845,7 +849,7 @@ async function ask(instruction, initial, historyToSend = []) {
     showStage(reviewController ? 'review' : 'plan', attempt ? t('正在按 CAD 校验结果修正几何…') : t('AI 正在计算实体几何…'));
     let result;
     try {
-      if (!comparison && (reviewController || alignmentOutput)) {
+      if (!comparison && alignmentOutput) {
         comparison = { images: await drawingPageImages(pdfDocument, drawingLocation) };
         signal.throwIfAborted();
         if (alignmentOutput?.parts?.length) {
@@ -859,9 +863,9 @@ async function ask(instruction, initial, historyToSend = []) {
       const coordinateEvidence = alignmentOutput?.terminalLayout?.length
         ? '\nCAD 端子组实测包围盒和首末实例包围盒中心（全局 XYZ，mm）：' + JSON.stringify(alignmentOutput.terminalLayout) : '';
       const previewNote = alignmentOutput && alignmentOutput === measuredGeometry && working !== current
-        ? '\n附图和 CAD 实测来自最后一次成功生成的预览。当前描述可能包含尚未通过建模的尝试。' : '';
+        ? '\nCAD 实测来自最近成功生成的预览。当前建模描述可能包含后续未通过的尝试。' : '';
       result = await requestVision({ ...visionCredentials(signal), inspection: drawing, instruction: request + previewNote + coordinateEvidence,
-        history: modelingHistory, current: working, custom, comparison });
+        history: modelingHistory, current: working, custom, drawingImage, comparison });
       signal.throwIfAborted();
     } catch (error) {
       if (!reviewController || error.name === 'PaymentRequiredError') throw error;
@@ -880,7 +884,8 @@ async function ask(instruction, initial, historyToSend = []) {
         await retryReview(error.message, failures++, signal);
       } else if (attempt >= lastAttempt || priorFeedback === feedback) throw error;
       priorFeedback = feedback;
-      request = intent + '\n建模描述校验失败：' + feedback + '\n只修正有问题的零件或轮廓，保留已有结构、端子数量、阵列和目标尺寸。';
+      request = intent + '\n上次提交未能应用。建模描述校验反馈：' + feedback
+        + (working ? '\n以当前描述为基线，重新提交本次调整需要的全部改动。' : '\n核对出错位置，返回修正后的完整模型。');
       continue;
     }
     if (!proposal) {
@@ -1032,7 +1037,7 @@ pdfInput.addEventListener('change', () => {
 });
 
 analyze.addEventListener('click', () => void run(t('正在查找机械尺寸图…'), () => ask(
-  '从候选页识别器件的机械外形、端子布局和可见结构，并生成完整的通用建模描述。',
+  '根据目标器件的机械图生成 3D 模型。',
   true,
 )));
 

@@ -20,10 +20,8 @@ export function normalizeDrawingViews(views, pages) {
   for (const view of views) {
     if (!pages.has(view?.page) || view.kind !== 'whole_part' || typeof view.label !== 'string' || !view.label.trim()
       || !Object.hasOwn(viewDirections, view.direction)) continue;
-    const { page, direction } = view;
-    const defaultUp = direction === '+Z' || direction === '-Z' ? '+Y' : '+Z';
-    const up = viewUpAxes.includes(view.up) && (direction.length > 2 || view.up[1] !== direction[1])
-      ? view.up : defaultUp;
+    const { page, direction, up } = view;
+    if (!viewUpAxes.includes(up) || (direction.length === 2 && up[1] === direction[1])) continue;
     confirmed.push({ page, label: view.label.trim().slice(0, 38), direction, up,
       position: typeof view.position === 'string' ? view.position.trim().slice(0, 50) : '' });
   }

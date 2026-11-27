@@ -1,6 +1,6 @@
 {
   "name": "eext-device-model-generator",
-  "version": "1.11.5",
+  "version": "1.11.7",
   "private": true,
   "description": "从器件数据手册生成 3D 预览和 STEP 的嘉立创EDA扩展",
   "license": "Apache-2.0",

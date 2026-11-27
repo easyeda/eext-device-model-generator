@@ -1,4 +1,4 @@
-# 器件模型生成器
+# 器件3D模型生成器
 
 [English](./README.en.md) 
 

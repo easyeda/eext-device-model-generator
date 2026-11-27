@@ -281,50 +281,8 @@ export function resolveProposal(response, pages, current) {
   return proposal;
 }
 
-export function reviewFeatures(inspection, proposal) {
-  const categories = new Set(Array.isArray(inspection.features) ? inspection.features.map(feature => feature?.kind) : []);
+export function reviewTerminals(inspection, proposal) {
   const warnings = [];
-  const structuralParts = proposal.parts.filter(part => ['body', 'metal', 'plastic', 'ceramic', 'enclosure'].includes(part.role));
-  const moldedParts = structuralParts.filter(part => ['body', 'plastic', 'ceramic'].includes(part.role));
-  function sectionSpans(shape) {
-    return shape.sections.map(({ profile }) => [0, 1].map(axis => {
-      const coordinates = profile.map(point => point[axis]);
-      return Math.max(...coordinates) - Math.min(...coordinates);
-    }));
-  }
-  function hasChangingSections(shape) {
-    if (shape.kind !== 'loft') return false;
-    const [first, ...rest] = sectionSpans(shape);
-    return rest.some(spans => spans.some((size, axis) => Math.abs(size - first[axis]) > 1e-5));
-  }
-  function hasWiderMiddle(shape) {
-    if (shape.kind !== 'loft' || shape.plane !== 'XY') return false;
-    const spans = sectionSpans(shape);
-    return spans.slice(1, -1).some(middle => middle.some((size, axis) =>
-      size - Math.max(spans[0][axis], spans.at(-1)[axis]) > 1e-5));
-  }
-  function hasDiagonal(shape) {
-    return shape.kind === 'prism' && shape.plane !== 'XY' && shape.profile.some(([x, y], index) => {
-      const [nextX, nextY] = shape.profile[(index + 1) % shape.profile.length];
-      return Math.abs(nextX - x) > 1e-5 && Math.abs(nextY - y) > 1e-5;
-    });
-  }
-  if (categories.has('sloped_outline') && !structuralParts.some(
-    part => [part.shape, ...part.cuts].some(shape => hasDiagonal(shape) || hasChangingSections(shape)))) {
-    warnings.push('图纸读到外壳斜边，建模描述缺少可对应的倾斜侧轮廓。');
-  }
-  if (categories.has('parting_taper') && !moldedParts.some(part => hasWiderMiddle(part.shape))) {
-    warnings.push('图纸显示塑封本体在分型线处较宽、顶底均收窄。请用 XY 底面、分型线、顶面三层或更多截面放样形成斜壁。');
-  }
-  if (categories.has('tapered_body') && !structuralParts.some(
-    part => [part.shape, ...part.cuts].some(shape => hasChangingSections(shape) || hasDiagonal(shape)))) {
-    warnings.push('图纸显示本体截面随高度变化，建模描述缺少相应的斜壁。请按侧视图采用截面放样或斜面拉伸。');
-  }
-  if (categories.has('mating_cavity') && !structuralParts.some(part => part.cuts.length)) {
-    const shellWalls = structuralParts.filter(({ shape, role }) => role !== 'plastic' && (shape.kind === 'prism'
-      || (shape.kind === 'box' && shape.size.filter(length => length > 2).length >= 2)));
-    if (shellWalls.length < 3) warnings.push('图纸读到配接空腔，建模描述缺少可对应的减材孔或独立壳壁。');
-  }
   if (Number.isInteger(inspection.terminalCount) && inspection.terminalCount > 0) {
     const terminals = proposal.parts.filter(part => part.role === 'terminal');
     const actual = terminals
