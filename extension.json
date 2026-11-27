@@ -3,7 +3,7 @@
   "uuid": "78c5565948744bbe93a6a42178daddcf",
   "displayName": "AI器件3D模型生成器",
   "description": "从器件数据手册PDF识别机械图和尺寸，生成可预览的3D模型及文件，支持绑定到PCB器件",
-  "version": "1.11.3",
+  "version": "1.11.4",
   "publisher": "EasyEDA",
   "engines": {
     "eda": "^4.1.0"
